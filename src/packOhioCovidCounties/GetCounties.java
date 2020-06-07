@@ -1,92 +1,93 @@
 package packOhioCovidCounties;
 
+import java.io.BufferedInputStream;
+import java.io.FileOutputStream;
+import java.io.FileReader;
+import java.net.URL;
 import java.util.ArrayList;
-
 import java.util.List;
-import org.jsoup.Jsoup;
-import org.jsoup.nodes.Document;
-import org.jsoup.select.Elements;
-
+import com.opencsv.CSVReader;
+import com.opencsv.CSVReaderBuilder;
 
 public class GetCounties {
 
+	/**
+	 * Method: Main - Calls other methods to display Ohio map by counties
+	 * @param args
+	 * args not used
+	 */
 	public static void main(String[] args) {
-		String url = "https://coronavirus.ohio.gov/wps/portal/gov/covid-19/";
+		String url = "https://coronavirus.ohio.gov/static/COVIDSummaryData.csv";
 		
     	try {
-    		OhioMap.colorStates( convertToArray( retrieveFromWebsite(url) ) );
+    		retrieveFromWebsite(url);
+    		OhioMap.colorStates( convertToArray() );
     	} catch(Exception e) {
     		e.printStackTrace();
         }
 	}
 	
-    public static String retrieveFromWebsite(String url) {
-    	String text = "";
+	/**
+	 * Method: retrieveFromWebsite - Downloads the CSV file
+	 * @param url
+	 * URL of csv file as a string
+	 */
+    public static void retrieveFromWebsite(String url) {
     	
     	try {
-    		// Get the tag from the website using JSoup
-        	Document doc = Jsoup.connect("https://coronavirus.ohio.gov/wps/portal/gov/covid-19/").get();
-        	Elements div = doc.select("div[class=odh-ads__super-script-item]");
-        	text = div.select("> p[dir=ltr]").text();
-
-        	// Counties are found in the footnote '*'
-    		// If there is another footnote, remove it from the string
-        	if ( text.indexOf("*", text.indexOf("*")) != -1 ) {
-        		text = text.substring( 0, text.indexOf("*", text.indexOf("*") + 1) );
-        	}
-    		 
-        	// Remove the intro text
-        	text = text.replace("* Number of counties with cases: ", "");
-        	text = text.substring(5);
-        	
-        	System.out.println(text);
+    		String filePath = "CoronavirusOhio.csv";
+    		
+    		// Convert string to URL
+            URL CSVurl = new URL(url);
+            
+            // Create input and output streams
+            BufferedInputStream bis = new BufferedInputStream(CSVurl.openStream());
+            FileOutputStream fis = new FileOutputStream(filePath);
+            
+            byte[] buffer = new byte[1024];
+            int count=0;
+            while( (count = bis.read(buffer, 0, 1024)) != -1 ) {
+                fis.write(buffer, 0, count);
+            }
+            
+            // Close input and output streams
+            fis.close();
+            bis.close();
         	
     	} catch(Exception e) {
     		e.printStackTrace();
     	}
-    	
-		return text;
 
     }
     
-    public static List<County> convertToArray(String countiesText) {
+    /**
+     * Method: convertToArray - Converts the CSV in an array of County objects
+     * @return countiesList
+     * List of county objects
+     */
+    public static List<County> convertToArray() {
     	List<County> countiesList = new ArrayList<County>();
-    	String currentCounty = "";
-    	int index = 0;
     	
     	try {
-    		while (countiesText.indexOf(",") > 0) {
-
-    			if (index > 0) {
-        			// Remove previous county info from the total string
-        			countiesText = countiesText.substring(index + 2);
-    			}
-        			
-        		// Sets end of county to ',' if there is another one
-    			if (countiesText.indexOf(",") > 0) {
-    				index = countiesText.indexOf( "," );
-    			// If last county, then set to the end of string
-    			} else {
-    				index = countiesText.length() - 1;
-    			}
-    			
-    			County c = new County();
-    			
-    			// Get the current 'countyName (cases)'
-        		currentCounty = countiesText.substring(0, index);
-    			
-    			// Separate the county name
-        		c.name  = currentCounty.substring( 0, currentCounty.indexOf("(") ).trim();
-        		System.out.println(c.name);
-
-    			// Separate the number of cases
-    			c.cases = Integer.parseInt( currentCounty.substring( currentCounty.indexOf("(") + 1, currentCounty.indexOf(")") ) );
-    			System.out.println( Integer.toString(c.cases) );
-        		
+    		// Skip first line of headings in csv file
+    		CSVReader csvReader = new CSVReaderBuilder(new FileReader("CoronavirusOhio.csv")).withSkipLines(1).build(); 
+		    String[] nextLine = null;
+		    while ((nextLine = csvReader.readNext()) != null) {
+		    	County c = new County();
+		    	
+		    	// Get the County column for county name
+		    	c.setName( nextLine[0] );
+		    	
+		    	// Get the Case Count column for number of cases
+		    	c.setCases( Integer.parseInt( nextLine[6].replaceAll(",", "") ) );
+		    	
         		// Add new object to list
         		countiesList.add(c);
-        		
-    		}
+		    }
+		    
+		    // Close CSV reader
+		    csvReader.close();
+		    
     	} catch(Exception e) {
     		e.printStackTrace();
     	}
